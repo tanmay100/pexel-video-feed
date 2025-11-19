@@ -37,28 +37,36 @@
 }
 
 .feed {
+  /* Container setup */
   width: 100vw;
   height: 100vh;
+  position: relative;
+  
+  /* Scroll behavior - following DEV article best practices */
   overflow-y: scroll;
   overflow-x: hidden;
   scroll-snap-type: y mandatory;
   scroll-behavior: smooth;
   overscroll-behavior-y: contain;
   -webkit-overflow-scrolling: touch;
+  
+  /* Hide scrollbar - cleaner full-screen experience */
+  -ms-overflow-style: none;  /* IE and Edge */
+  scrollbar-width: none;  /* Firefox */
+  
+  /* Layout */
   display: flex;
   flex-direction: column;
   gap: 0;
   padding: 0;
-  position: relative;
+  margin: 0;
+  
+  /* Prevent horizontal scroll from vertical swipes */
+  touch-action: pan-y;
 }
 
 .feed::-webkit-scrollbar {
-  display: none; /* Hide scrollbar for cleaner full-screen experience */
-}
-
-.feed {
-  -ms-overflow-style: none;  /* Hide scrollbar for IE and Edge */
-  scrollbar-width: none;  /* Hide scrollbar for Firefox */
+  display: none; /* Webkit browsers */
 }
 
 .feed__status {
@@ -77,28 +85,42 @@
 }
 
 .feed-card {
+  /* Positioning and size - each card takes full viewport */
   position: relative;
   width: 100vw;
   height: 100vh;
-  max-height: 100vh;
   min-height: 100vh;
+  max-height: 100vh;
+  
+  /* Reset spacing */
   margin: 0;
   padding: 0;
   border: none;
   border-radius: 0;
-  overflow: hidden;
+  
+  /* Scroll snapping - following DEV article */
   scroll-snap-align: start;
   scroll-snap-stop: always;
+  
+  /* Prevent shrinking in flex container */
+  flex-shrink: 0;
+  
+  /* Background setup */
   background-size: cover;
   background-position: center;
+  overflow: hidden;
+  
+  /* Layout */
   display: flex;
   align-items: flex-end;
   justify-content: center;
   isolation: isolate;
-  will-change: transform, opacity;
-  flex-shrink: 0;
   
-  /* Default resting state - slightly below and scaled down */
+  /* Performance optimization */
+  will-change: transform, opacity;
+  backface-visibility: hidden;
+  
+  /* Instagram-style entrance animation - default state */
   transform: translateY(65px) scale(0.92);
   opacity: 0.75;
   transition: 
@@ -135,12 +157,24 @@
 }
 
 .feed-card__media {
+  /* Positioning - fill entire card */
   position: absolute;
   inset: 0;
   width: 100%;
   height: 100%;
+  
+  /* Video display */
   object-fit: cover;
+  object-position: center;
+  
+  /* Layer management */
   z-index: 0;
+  
+  /* Prevent interaction while scrolling */
+  pointer-events: auto;
+  
+  /* Smooth rendering */
+  backface-visibility: hidden;
 }
 
 .feed-card__meta {
@@ -148,10 +182,10 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 1.5rem 2rem;
+  padding: clamp(1rem, 3vh, 2rem) clamp(1rem, 4vw, 2.5rem);
   z-index: 2;
   color: #fff;
-  gap: 1rem;
+  gap: clamp(0.75rem, 2vw, 1.5rem);
 }
 
 .feed-card__actions {
@@ -163,11 +197,12 @@
 .feed-card__author {
   font-weight: 600;
   margin: 0;
+  font-size: clamp(0.95rem, 2.5vw, 1.1rem);
 }
 
 .feed-card__duration {
-  margin: 0.25rem 0 0;
-  font-size: 0.85rem;
+  margin: clamp(0.15rem, 0.5vh, 0.35rem) 0 0;
+  font-size: clamp(0.75rem, 2vw, 0.9rem);
   color: rgba(255, 255, 255, 0.75);
 }
 
@@ -175,33 +210,47 @@
   color: #050505;
   background: #f2f2f2;
   border-radius: 999px;
-  padding: 0.5rem 1.25rem;
+  padding: clamp(0.45rem, 1.5vh, 0.65rem) clamp(1rem, 3vw, 1.5rem);
   font-weight: 600;
+  font-size: clamp(0.85rem, 2vw, 1rem);
   text-decoration: none;
-  transition: background 150ms ease, color 150ms ease;
+  transition: background 150ms ease, color 150ms ease, transform 150ms ease;
+  white-space: nowrap;
 }
 
 .feed-card__cta:hover {
   background: #fff;
   color: #111;
+  transform: scale(1.02);
+}
+
+.feed-card__cta:active {
+  transform: scale(0.98);
 }
 
 .feed-card__audio {
-  width: 48px;
-  height: 48px;
+  width: clamp(40px, 8vw, 52px);
+  height: clamp(40px, 8vw, 52px);
   border-radius: 50%;
   border: 1px solid rgba(255, 255, 255, 0.3);
   background: rgba(0, 0, 0, 0.35);
+  backdrop-filter: blur(8px);
   color: #fff;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  transition: background 200ms ease, border-color 200ms ease, color 200ms ease;
+  transition: background 200ms ease, border-color 200ms ease, color 200ms ease,
+    transform 150ms ease;
 }
 
 .feed-card__audio:hover {
   border-color: rgba(255, 255, 255, 0.6);
+  transform: scale(1.05);
+}
+
+.feed-card__audio:active {
+  transform: scale(0.95);
 }
 
 .feed-card__audio--on {
@@ -210,8 +259,8 @@
 }
 
 .feed-card__audio-icon {
-  width: 26px;
-  height: 26px;
+  width: clamp(22px, 4.5vw, 28px);
+  height: clamp(22px, 4.5vw, 28px);
 }
 
 .feed__pull-indicator {
@@ -219,30 +268,50 @@
 }
 
 .feed__pagination {
-  position: sticky;
+  /* Positioning - sticky to viewport, not scroll container */
+  position: fixed;
   top: 50%;
-  align-self: flex-end;
+  right: clamp(0.5rem, 2vw, 1.5rem);
+  transform: translateY(-50%);
+  
+  /* Layout */
   display: flex;
   flex-direction: column;
-  gap: 0.4rem;
-  padding-right: clamp(0.5rem, 2vw, 1.5rem);
-  transform: translateY(-50%);
-  z-index: 4;
+  gap: clamp(0.35rem, 1vh, 0.6rem);
+  
+  /* Layer management */
+  z-index: 10;
   pointer-events: none;
+  
+  /* Accessibility */
+  user-select: none;
 }
 
 .feed__pagination-dot {
-  width: 6px;
-  height: 16px;
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.35);
-  transition: height 220ms ease, background 220ms ease, opacity 220ms ease;
-  opacity: 0.5;
+  /* Size - following Instagram style with responsive sizing */
+  width: clamp(4px, 1vw, 6px);
+  height: clamp(4px, 1vw, 6px);
+  border-radius: 50%;
+  
+  /* Visual style */
+  background: rgba(255, 255, 255, 0.4);
+  
+  /* Animation - smooth transition */
+  transition: 
+    height 280ms cubic-bezier(0.16, 1, 0.3, 1),
+    width 280ms cubic-bezier(0.16, 1, 0.3, 1),
+    background 220ms ease,
+    opacity 220ms ease,
+    border-radius 280ms ease;
+  opacity: 0.6;
 }
 
 .feed__pagination-dot--active {
-  height: 28px;
-  background: #fff;
+  /* Active state - elongated like Instagram with responsive sizing */
+  height: clamp(18px, 4vh, 28px);
+  width: clamp(4px, 1vw, 6px);
+  border-radius: 999px;
+  background: #ffffff;
   opacity: 1;
 }
 
@@ -302,17 +371,19 @@
   transition: transform 250ms cubic-bezier(0.16, 1, 0.3, 1) !important;
 }
 
+/* Tablet and below - vertical layout for controls */
 @media (max-width: 768px) {
   .feed-card__meta {
     flex-direction: column;
     align-items: flex-start;
-    padding: 1rem 1.25rem;
+    padding: clamp(0.75rem, 2.5vh, 1.25rem) clamp(0.75rem, 3vw, 1.5rem);
   }
 
   .feed-card__actions {
     width: 100%;
     flex-direction: row;
     justify-content: space-between;
+    gap: clamp(0.5rem, 2vw, 1rem);
   }
 
   .feed-card__cta {
@@ -321,41 +392,65 @@
   }
 }
 
-/* Extra small devices */
+/* Small mobile devices - compact layout */
 @media (max-width: 480px) {
   .feed-card__meta {
-    padding: 1rem;
-  }
-
-  .feed-card__author {
-    font-size: 0.95rem;
-  }
-
-  .feed-card__duration {
-    font-size: 0.8rem;
-  }
-
-  .feed-card__audio {
-    width: 44px;
-    height: 44px;
-  }
-
-  .feed-card__audio-icon {
-    width: 22px;
-    height: 22px;
-  }
-
-  .feed-card__cta {
-    font-size: 0.9rem;
-    padding: 0.45rem 1rem;
+    padding: clamp(0.65rem, 2vh, 1rem) clamp(0.65rem, 2.5vw, 1rem);
   }
 }
 
-/* Landscape mobile */
+/* Landscape mobile - horizontal compact layout */
 @media (max-height: 500px) and (orientation: landscape) {
   .feed-card__meta {
-    padding: 0.75rem 1rem;
+    padding: clamp(0.5rem, 1.5vh, 0.85rem) clamp(0.75rem, 2.5vw, 1.25rem);
     flex-direction: row;
     align-items: center;
+  }
+
+  .feed-card__actions {
+    flex-direction: row;
+    width: auto;
+  }
+
+  .feed-card__cta {
+    flex: 0;
+    white-space: nowrap;
+  }
+}
+
+/* Very small screens - ultra compact */
+@media (max-width: 360px) {
+  .feed-card__meta {
+    padding: 0.6rem 0.75rem;
+  }
+
+  .feed-card__actions {
+    gap: 0.5rem;
+  }
+}
+
+/* Large tablets and small laptops */
+@media (min-width: 769px) and (max-width: 1024px) {
+  .feed-card__meta {
+    padding: clamp(1.25rem, 2.5vh, 1.75rem) clamp(1.5rem, 4vw, 2.25rem);
+  }
+}
+
+/* Desktop - optimal spacing */
+@media (min-width: 1025px) {
+  .feed-card__meta {
+    padding: clamp(1.5rem, 3vh, 2.25rem) clamp(2rem, 5vw, 3rem);
+  }
+
+  .feed-card__actions {
+    gap: 1.25rem;
+  }
+}
+
+/* Ultra-wide screens - prevent over-stretching */
+@media (min-width: 1920px) {
+  .feed-card__meta {
+    max-width: 90%;
+    margin: 0 auto;
   }
 }
