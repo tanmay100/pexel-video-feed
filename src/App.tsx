@@ -54,21 +54,12 @@ function App() {
   )
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [unmutedVideoId, setUnmutedVideoId] = useState<number | null>(null)
+  // @ts-ignore - used in pagination dots
   const [currentIndex, setCurrentIndex] = useState(0)
   
-  // Refs for Instagram-style scroll
+  // Refs - simple approach following DEV article
   const feedRef = useRef<HTMLElement | null>(null)
   const videoRefs = useRef<Record<number, HTMLVideoElement | null>>({})
-  const scrollState = useRef({
-    isScrolling: false,
-    isDragging: false,
-    startY: 0,
-    currentY: 0,
-    lastScrollTime: 0,
-    accumulatedDelta: 0,
-    targetIndex: 0,
-    animationFrame: null as number | null,
-  })
 
   useEffect(() => {
     const controller = new AbortController()
@@ -191,264 +182,73 @@ function App() {
     [unmutedVideoId]
   )
 
-  // Get card element by index
-  const getCardByIndex = useCallback((index: number): HTMLElement | null => {
-    if (!feedRef.current) return null
+  // Simple IntersectionObserver approach - following DEV article
+  useEffect(() => {
     const cards = Array.from(
-      feedRef.current.querySelectorAll<HTMLElement>('[data-feed-card]')
+      feedRef.current?.querySelectorAll('[data-feed-card]') ?? []
+    ) as HTMLElement[]
+
+    if (!cards.length) return
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting && entry.intersectionRatio >= 0.75) {
+            const index = parseInt(
+              (entry.target as HTMLElement).dataset.cardIndex ?? '0',
+              10
+            )
+            setCurrentIndex(index)
+
+            // Play/pause videos
+            const videoId = parseInt(
+              (entry.target as HTMLElement).dataset.videoId ?? '0',
+              10
+            )
+            const video = videoRefs.current[videoId]
+            
+            if (video) {
+              const playPromise = video.play()
+              if (playPromise) {
+                playPromise.catch(() => {
+                  /* autoplay blocked */
+                })
+              }
+            }
+          } else {
+            // Pause when not visible
+            const videoId = parseInt(
+              (entry.target as HTMLElement).dataset.videoId ?? '0',
+              10
+            )
+            const video = videoRefs.current[videoId]
+            
+            if (video) {
+              video.pause()
+              video.currentTime = 0
+              
+              // Auto-mute when scrolling away
+              if (unmutedVideoId === videoId) {
+                video.muted = true
+                setUnmutedVideoId(null)
+              }
+            }
+          }
+        })
+      },
+      {
+        root: feedRef.current,
+        threshold: [0, 0.75, 1],
+      }
     )
-    return cards[index] ?? null
-  }, [])
 
-  // Snap to specific index with Instagram-style animation
-  const snapToIndex = useCallback(
-    (targetIndex: number, immediate = false) => {
-      const clampedIndex = Math.max(0, Math.min(targetIndex, videos.length - 1))
-      if (clampedIndex === currentIndex && !immediate) return
-
-      const targetCard = getCardByIndex(clampedIndex)
-      if (!targetCard) return
-
-      scrollState.current.isScrolling = true
-      scrollState.current.targetIndex = clampedIndex
-      scrollState.current.accumulatedDelta = 0
-
-      // Reset current card transform before snapping
-      const currentCard = getCardByIndex(currentIndex)
-      if (currentCard) {
-        currentCard.style.transform = ''
-        currentCard.style.transition = ''
-      }
-
-      // Apply smooth scroll
-      targetCard.scrollIntoView({
-        behavior: immediate ? 'auto' : 'smooth',
-        block: 'start',
-      })
-
-      setCurrentIndex(clampedIndex)
-
-      // Reset scrolling state after animation
-      window.setTimeout(
-        () => {
-          scrollState.current.isScrolling = false
-        },
-        immediate ? 0 : 500
-      )
-    },
-    [currentIndex, videos, getCardByIndex]
-  )
-
-  // Play/pause video based on active index
-  useEffect(() => {
-    if (!videos.length) return
-
-    Object.entries(videoRefs.current).forEach(([videoIdStr, element]) => {
-      if (!element) return
-      const videoId = Number(videoIdStr)
-      const videoIndex = videos.findIndex((v) => v.id === videoId)
-      const isActive = videoIndex === currentIndex
-
-      if (isActive) {
-        const playPromise = element.play()
-        if (playPromise) {
-          playPromise.catch(() => {
-            /* autoplay might be blocked */
-          })
-        }
-      } else {
-        element.pause()
-        element.currentTime = 0
-        // Auto-mute when scrolling away
-        if (unmutedVideoId === videoId) {
-          element.muted = true
-          setUnmutedVideoId(null)
-        }
-      }
-    })
-  }, [currentIndex, videos, unmutedVideoId])
-
-  // Instagram Reels scroll handler with threshold and rubber-band
-  useEffect(() => {
-    const feedEl = feedRef.current
-    if (!feedEl || !videos.length) return
-
-    let wheelTimeout: ReturnType<typeof setTimeout> | null = null
-
-    const handleWheel = (event: WheelEvent) => {
-      // Don't interfere if already snapping
-      if (scrollState.current.isScrolling) {
-        event.preventDefault()
-        return
-      }
-
-      const now = Date.now()
-      scrollState.current.lastScrollTime = now
-
-      // Accumulate scroll delta
-      scrollState.current.accumulatedDelta += event.deltaY
-
-      // Prevent default to control scroll
-      event.preventDefault()
-
-      // Clear existing timeout
-      if (wheelTimeout) {
-        clearTimeout(wheelTimeout)
-      }
-
-      // Calculate card height for threshold
-      const cardHeight = feedEl.clientHeight
-      const threshold = cardHeight * 0.01 // Reduced from 0.45 to 0.25 for easier scrolling
-
-      // Check if we've crossed the threshold
-      if (Math.abs(scrollState.current.accumulatedDelta) >= threshold) {
-        const direction = scrollState.current.accumulatedDelta > 0 ? 1 : -1
-        const nextIndex = currentIndex + direction
-
-        // Clamp to valid range
-        if (nextIndex >= 0 && nextIndex < videos.length) {
-          snapToIndex(nextIndex)
-          scrollState.current.accumulatedDelta = 0
-        } else {
-          // At boundary - apply stronger resistance
-          const currentCard = getCardByIndex(currentIndex)
-          if (currentCard) {
-            const resistance = 0.12 // Reduced boundary resistance
-            const translateY = -scrollState.current.accumulatedDelta * resistance
-            const clampedTranslate = Math.max(-50, Math.min(50, translateY))
-            currentCard.style.transform = `translateY(${clampedTranslate}px) scale(1)`
-            currentCard.style.transition = 'none'
-          }
-        }
-      } else {
-        // Apply rubber-band resistance for visual feedback
-        const resistance = 0.5 // Increased from 0.35 to 0.5 for more responsive feel
-        const translateY = -scrollState.current.accumulatedDelta * resistance
-
-        const currentCard = getCardByIndex(currentIndex)
-        if (currentCard) {
-          currentCard.style.transform = `translateY(${translateY}px) scale(1)`
-          currentCard.style.transition = 'none'
-        }
-      }
-
-      // Reset after user stops scrolling
-      wheelTimeout = setTimeout(() => {
-        const currentCard = getCardByIndex(currentIndex)
-        if (currentCard && !scrollState.current.isScrolling) {
-          currentCard.style.transform = ''
-          currentCard.style.transition =
-            'transform 250ms cubic-bezier(0.16, 1, 0.3, 1)'
-        }
-        scrollState.current.accumulatedDelta = 0
-      }, 150)
-    }
-
-    feedEl.addEventListener('wheel', handleWheel, { passive: false })
+    cards.forEach((card) => observer.observe(card))
 
     return () => {
-      feedEl.removeEventListener('wheel', handleWheel)
-      if (wheelTimeout) clearTimeout(wheelTimeout)
+      cards.forEach((card) => observer.unobserve(card))
+      observer.disconnect()
     }
-  }, [videos, currentIndex, snapToIndex, getCardByIndex])
-
-  // Touch handler with rubber-band effect
-  useEffect(() => {
-    const feedEl = feedRef.current
-    if (!feedEl || !videos.length) return
-
-    const handleTouchStart = (event: TouchEvent) => {
-      if (scrollState.current.isScrolling) return
-      scrollState.current.isDragging = true
-      scrollState.current.startY = event.touches[0]?.clientY ?? 0
-      scrollState.current.currentY = scrollState.current.startY
-    }
-
-    const handleTouchMove = (event: TouchEvent) => {
-      if (!scrollState.current.isDragging || scrollState.current.isScrolling) return
-
-      const touchY = event.touches[0]?.clientY ?? 0
-      const deltaY = scrollState.current.startY - touchY
-      scrollState.current.currentY = touchY
-
-      // Check boundaries
-      const isAtTop = currentIndex === 0 && deltaY < 0
-      const isAtBottom = currentIndex === videos.length - 1 && deltaY > 0
-
-      // Apply rubber-band resistance
-      const resistance = isAtTop || isAtBottom ? 0.12 : 0.5 // More responsive touch
-      const translateY = -deltaY * resistance
-      const clampedTranslate = isAtTop || isAtBottom 
-        ? Math.max(-50, Math.min(50, translateY))
-        : translateY
-
-      const currentCard = getCardByIndex(currentIndex)
-      if (currentCard) {
-        currentCard.style.transform = `translateY(${clampedTranslate}px) scale(1)`
-        currentCard.style.transition = 'none'
-      }
-
-      // Prevent default scroll
-      event.preventDefault()
-    }
-
-    const handleTouchEnd = () => {
-      if (!scrollState.current.isDragging) return
-
-      const deltaY = scrollState.current.startY - scrollState.current.currentY
-      const cardHeight = feedEl.clientHeight
-      const threshold = cardHeight * 0.25 // Match wheel threshold for consistency
-
-      const currentCard = getCardByIndex(currentIndex)
-
-      if (Math.abs(deltaY) >= threshold) {
-        // Crossed threshold - snap to next/prev
-        const direction = deltaY > 0 ? 1 : -1
-        const nextIndex = currentIndex + direction
-
-        if (nextIndex >= 0 && nextIndex < videos.length) {
-          snapToIndex(nextIndex)
-        } else {
-          // Bounce back if at boundary
-          if (currentCard) {
-            currentCard.style.transform = ''
-            currentCard.style.transition =
-              'transform 250ms cubic-bezier(0.16, 1, 0.3, 1)'
-          }
-        }
-      } else {
-        // Didn't cross threshold - snap back
-        if (currentCard) {
-          currentCard.style.transform = ''
-          currentCard.style.transition =
-            'transform 250ms cubic-bezier(0.16, 1, 0.3, 1)'
-        }
-      }
-
-      scrollState.current.isDragging = false
-      scrollState.current.startY = 0
-      scrollState.current.currentY = 0
-    }
-
-    feedEl.addEventListener('touchstart', handleTouchStart, { passive: true })
-    feedEl.addEventListener('touchmove', handleTouchMove, { passive: false })
-    feedEl.addEventListener('touchend', handleTouchEnd)
-    feedEl.addEventListener('touchcancel', handleTouchEnd)
-
-    return () => {
-      feedEl.removeEventListener('touchstart', handleTouchStart)
-      feedEl.removeEventListener('touchmove', handleTouchMove)
-      feedEl.removeEventListener('touchend', handleTouchEnd)
-      feedEl.removeEventListener('touchcancel', handleTouchEnd)
-    }
-  }, [videos, currentIndex, snapToIndex, getCardByIndex])
-
-  // Initialize first video on mount
-  useEffect(() => {
-    if (videos.length > 0 && currentIndex === 0) {
-      snapToIndex(0, true)
-    }
-  }, [videos.length, snapToIndex, currentIndex])
+  }, [videos, unmutedVideoId])
 
   return (
     <main className="app">
@@ -489,19 +289,13 @@ function App() {
           <div className="feed__status">No videos found. Try again later.</div>
         )}
 
-        {videos.map((video, index) => {
-          const isActive = index === currentIndex
-          const isIncoming = index === currentIndex + 1
-          const isOutgoing = index === currentIndex - 1
-
-          return (
+        {videos.map((video, index) => (
             <article
               key={video.id}
               data-feed-card="true"
               data-card-index={index}
-              className={`feed-card ${isActive ? 'feed-card--active' : ''} ${
-                isIncoming ? 'feed-card--incoming' : ''
-              } ${isOutgoing ? 'feed-card--outgoing' : ''}`}
+              data-video-id={video.id}
+              className="feed-card"
               style={{ backgroundImage: `url(${video.previewImage})` }}
             >
             <div className="feed-card__overlay" />
@@ -599,8 +393,7 @@ function App() {
               </div>
             </div>
           </article>
-          )
-        })}
+        ))}
       </section>
     </main>
   )

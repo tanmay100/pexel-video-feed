@@ -115,38 +115,6 @@
   align-items: flex-end;
   justify-content: center;
   isolation: isolate;
-  
-  /* Performance optimization */
-  will-change: transform, opacity;
-  backface-visibility: hidden;
-  
-  /* Instagram-style entrance animation - default state */
-  transform: translateY(65px) scale(0.92);
-  opacity: 0.75;
-  transition: 
-    transform 420ms cubic-bezier(0.16, 1, 0.3, 1),
-    opacity 220ms ease,
-    box-shadow 320ms ease;
-  box-shadow: 0 25px 50px rgba(0, 0, 0, 0.3);
-}
-
-/* Active card - full size, centered, bright */
-.feed-card--active {
-  transform: translateY(0) scale(1);
-  opacity: 1;
-  box-shadow: 0 45px 90px rgba(0, 0, 0, 0.5);
-}
-
-/* Incoming card (next) - below viewport, slightly scaled down */
-.feed-card--incoming {
-  transform: translateY(65px) scale(0.92);
-  opacity: 0.75;
-}
-
-/* Outgoing card (previous) - above viewport, fading */
-.feed-card--outgoing {
-  transform: translateY(-45px) scale(0.94);
-  opacity: 0.6;
 }
 
 .feed-card__overlay {
@@ -366,10 +334,6 @@
   }
 }
 
-/* Smooth rubber-band snap-back helper class */
-.feed-card--rubber-band {
-  transition: transform 250ms cubic-bezier(0.16, 1, 0.3, 1) !important;
-}
 
 /* Tablet and below - vertical layout for controls */
 @media (max-width: 768px) {
