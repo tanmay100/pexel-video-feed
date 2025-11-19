@@ -1,6 +1,8 @@
 .app {
   height: 100vh;
   width: 100vw;
+  margin: 0;
+  padding: 0;
   overflow: hidden;
   background: radial-gradient(circle at top, #111 0%, #050505 45%);
   color: #f2f2f2;
@@ -51,11 +53,12 @@
 }
 
 .feed::-webkit-scrollbar {
-  width: 6px;
+  display: none; /* Hide scrollbar for cleaner full-screen experience */
 }
-.feed::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.2);
-  border-radius: 999px;
+
+.feed {
+  -ms-overflow-style: none;  /* Hide scrollbar for IE and Edge */
+  scrollbar-width: none;  /* Hide scrollbar for Firefox */
 }
 
 .feed__status {
@@ -79,6 +82,9 @@
   height: 100vh;
   max-height: 100vh;
   min-height: 100vh;
+  margin: 0;
+  padding: 0;
+  border: none;
   border-radius: 0;
   overflow: hidden;
   scroll-snap-align: start;
