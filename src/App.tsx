@@ -37,8 +37,8 @@ const API_KEY =
   import.meta.env.VITE_PEXELS_API_KEY ??
   'oigofsD0VKNu7nW2ah8RZQ2hxY0z2KeT3jL2qhcj2uAB0ckoQtxZw5m5'
 
-const POPULAR_VIDEOS_ENDPOINT =
-  'https://api.pexels.com/videos/popular?per_page=20'
+const POPULAR_VIDEOS_ENDPOINT = 'https://api.pexels.com/videos/popular'
+const PER_PAGE = 12
 
 const formatDuration = (seconds: number) => {
   if (!seconds && seconds !== 0) return ''
@@ -56,26 +56,38 @@ function App() {
   const [unmutedVideoId, setUnmutedVideoId] = useState<number | null>(null)
   // @ts-ignore - used in pagination dots
   const [currentIndex, setCurrentIndex] = useState(0)
+  const [page, setPage] = useState(1)
+  const [hasMore, setHasMore] = useState(true)
+  const [isLoadingMore, setIsLoadingMore] = useState(false)
   
   // Refs - simple approach following DEV article
   const feedRef = useRef<HTMLElement | null>(null)
   const videoRefs = useRef<Record<number, HTMLVideoElement | null>>({})
+  const loadMoreRef = useRef<HTMLDivElement | null>(null)
+  const fetchController = useRef<AbortController | null>(null)
 
-  useEffect(() => {
-    const controller = new AbortController()
-
-    const fetchVideos = async () => {
+  const fetchVideos = useCallback(
+    async (pageToLoad: number, append = false) => {
       if (!API_KEY) {
         setStatus('error')
         setErrorMessage('Missing Pexels API key.')
-        return
+        return false
       }
 
-      setStatus('loading')
-      setErrorMessage(null)
+      const controller = new AbortController()
+      fetchController.current?.abort()
+      fetchController.current = controller
+
+      if (!append) {
+        setStatus('loading')
+        setErrorMessage(null)
+      } else {
+        setIsLoadingMore(true)
+      }
 
       try {
-        const response = await fetch(POPULAR_VIDEOS_ENDPOINT, {
+        const url = `${POPULAR_VIDEOS_ENDPOINT}?per_page=${PER_PAGE}&page=${pageToLoad}`
+        const response = await fetch(url, {
           headers: {
             Authorization: API_KEY,
           },
@@ -118,21 +130,43 @@ function App() {
           })
           .filter((video): video is FeedVideo => Boolean(video))
 
-        setVideos(formatted)
+        setVideos((prev) => {
+          if (!append) {
+            return formatted
+          }
+
+          const existingIds = new Set(prev.map((video) => video.id))
+          const uniqueNew = formatted.filter((video) => !existingIds.has(video.id))
+          return [...prev, ...uniqueNew]
+        })
+
+        setHasMore(data.videos.length === PER_PAGE)
         setStatus('success')
+        return true
       } catch (error) {
-        if (controller.signal.aborted) return
-        setErrorMessage(
-          error instanceof Error ? error.message : 'Something went wrong.'
-        )
-        setStatus('error')
+        if (!append && !(error instanceof DOMException && error.name === 'AbortError')) {
+          setErrorMessage(
+            error instanceof Error ? error.message : 'Something went wrong.'
+          )
+          setStatus('error')
+        }
+        return false
+      } finally {
+        if (append) {
+          setIsLoadingMore(false)
+        }
       }
+    },
+    []
+  )
+
+  useEffect(() => {
+    fetchVideos(1, false)
+
+    return () => {
+      fetchController.current?.abort()
     }
-
-    fetchVideos()
-
-    return () => controller.abort()
-  }, [])
+  }, [fetchVideos])
 
   const registerVideo = useCallback((id: number) => {
     return (node: HTMLVideoElement | null) => {
@@ -183,6 +217,15 @@ function App() {
   )
 
   // Simple IntersectionObserver approach - following DEV article
+  const loadMore = useCallback(async () => {
+    if (!hasMore || isLoadingMore) return
+    const nextPage = page + 1
+    const loaded = await fetchVideos(nextPage, true)
+    if (loaded) {
+      setPage(nextPage)
+    }
+  }, [fetchVideos, hasMore, isLoadingMore, page])
+
   useEffect(() => {
     const cards = Array.from(
       feedRef.current?.querySelectorAll('[data-feed-card]') ?? []
@@ -249,6 +292,42 @@ function App() {
       observer.disconnect()
     }
   }, [videos, unmutedVideoId])
+
+  useEffect(() => {
+    if (!hasMore) return
+
+    const sentinel = loadMoreRef.current
+    const feed = feedRef.current
+    if (!sentinel || !feed) return
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const [entry] = entries
+        if (entry.isIntersecting) {
+          loadMore()
+        }
+      },
+      {
+        root: feed,
+        threshold: 0.5,
+      }
+    )
+
+    observer.observe(sentinel)
+
+    return () => {
+      observer.disconnect()
+    }
+  }, [hasMore, loadMore])
+
+  useEffect(() => {
+    if (!hasMore || isLoadingMore || videos.length === 0) return
+
+    const remaining = videos.length - (currentIndex + 1)
+    if (remaining <= 4) {
+      loadMore()
+    }
+  }, [currentIndex, hasMore, isLoadingMore, loadMore, videos.length])
 
   return (
     <main className="app">
@@ -394,6 +473,16 @@ function App() {
             </div>
           </article>
         ))}
+
+        {hasMore && (
+          <div className="feed__sentinel" ref={loadMoreRef} aria-hidden="true">
+            {isLoadingMore && (
+              <div className="feed__status feed__status--loading-more">
+                Loading more videos…
+              </div>
+            )}
+          </div>
+        )}
       </section>
     </main>
   )

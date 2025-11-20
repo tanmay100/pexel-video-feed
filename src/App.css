@@ -84,6 +84,12 @@
   color: #ffb3b3;
 }
 
+.feed__status--loading-more {
+  margin: 0;
+  background: rgba(255, 255, 255, 0.08);
+  font-size: 0.9rem;
+}
+
 .feed-card {
   /* Positioning and size - each card takes full viewport */
   position: relative;
@@ -115,6 +121,15 @@
   align-items: flex-end;
   justify-content: center;
   isolation: isolate;
+}
+
+.feed__sentinel {
+  width: 100%;
+  min-height: 120px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem 0;
 }
 
 .feed-card__overlay {
